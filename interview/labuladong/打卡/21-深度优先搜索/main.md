@@ -145,3 +145,253 @@ func dfs(grid [][]int, i int, j int, visited [][]bool) {
     // 离开节点 (i, j)
 }
 ```
+
+### 岛屿数量
+
+为什么每次遇到岛屿，都要用 DFS 算法把岛屿「淹了」呢？
+
+主要是为了省事，避免维护 visited 数组。因为 dfs 函数遍历到值为 0 的位置会直接返回，所以只要把经过的位置都设置为 0，就可以起到不走回头路的作用（这类 DFS 算法还有个别名叫做 FloodFill 算法）
+
+```go
+func numIslands(grid [][]byte) int {
+    res := 0
+    m, n := len(grid), len(grid[0])
+    // 遍历 grid
+    for i := 0; i < m; i++ {
+        for j := 0; j < n; j++ {
+            if grid[i][j] == '1' {
+                // 每发现一个岛屿，岛屿数量加一
+                res++
+                // 然后使用 DFS 将岛屿淹了
+                dfs(grid, i, j)
+            }
+        }
+    }
+    return res
+}
+
+// 从 (i, j) 开始，将与之相邻的陆地都变成海水
+func dfs(grid [][]byte, i, j int) {
+    m, n := len(grid), len(grid[0])
+    if i < 0 || j < 0 || i >= m || j >= n {
+        // 超出索引边界
+        return
+    }
+    if grid[i][j] == '0' {
+        // 已经是海水了
+        return
+    }
+    // 将 (i, j) 变成海水
+    grid[i][j] = '0'
+    // 淹没上下左右的陆地
+    dfs(grid, i + 1, j)
+    dfs(grid, i, j + 1)
+    dfs(grid, i - 1, j)
+    dfs(grid, i, j - 1)
+}
+```
+
+### 封闭岛屿
+
+如何判断「封闭岛屿」呢？
+
+把上一题中那些靠边的岛屿排除掉，剩下的不就是「封闭岛屿」了
+
+```go
+// 主函数：计算封闭岛屿的数量
+func closedIsland(grid [][]int) int {
+    m, n := len(grid), len(grid[0])
+    for j := 0; j < n; j++ {
+        // 把靠上边的岛屿淹掉
+        dfs(grid, 0, j)
+        // 把靠下边的岛屿淹掉
+        dfs(grid, m-1, j)
+    }
+    for i := 0; i < m; i++ {
+        // 把靠左边的岛屿淹掉
+        dfs(grid, i, 0)
+        // 把靠右边的岛屿淹掉
+        dfs(grid, i, n-1)
+    }
+    // 遍历 grid，剩下的岛屿都是封闭岛屿
+    res := 0
+    for i := 0; i < m; i++ {
+        for j := 0; j < n; j++ {
+            if grid[i][j] == 0 {
+                res++
+                dfs(grid, i, j)
+            }
+        }
+    }
+    return res
+}
+
+// 从 (i, j) 开始，将与之相邻的陆地都变成海水
+func dfs(grid [][]int, i int, j int) {
+    m, n := len(grid), len(grid[0])
+    if i < 0 || j < 0 || i >= m || j >= n{
+        return
+    }
+    if grid[i][j] == 1 {
+        // 已经是海水了
+        return
+    }
+    // 将 (i, j) 变成海水
+    grid[i][j] = 1
+    // 淹没上下左右的陆地
+    dfs(grid, i+1, j)
+    dfs(grid, i, j+1)
+    dfs(grid, i-1, j)
+    dfs(grid, i, j-1)
+}
+```
+
+### 岛屿最大面积
+
+dfs 函数淹没岛屿的同时，还应该想办法记录这个岛屿的面积
+
+```go
+func maxAreaOfIsland(grid [][]int) int {
+	// 记录岛屿的最大面积
+	var res int
+	m := len(grid)
+	n := len(grid[0])
+	for i := 0; i < m; i++ {
+		for j := 0; j < n; j++ {
+			if grid[i][j] == 1 {
+				// 淹没岛屿，并更新最大岛屿面积
+				res = max(res, dfs(grid, i, j))
+			}
+		}
+	}
+	return res
+}
+
+// 淹没与 (i, j) 相邻的陆地，并返回淹没的陆地面积
+func dfs(grid [][]int, i, j int) int {
+	m := len(grid)
+	n := len(grid[0])
+	if i < 0 || j < 0 || i >= m || j >= n {
+		// 超出索引边界
+		return 0
+	}
+	if grid[i][j] == 0 {
+		// 已经是海水了
+		return 0
+	}
+	// 将 (i, j) 变成海水
+	grid[i][j] = 0
+
+	return dfs(grid, i+1, j) +
+		dfs(grid, i, j+1) +
+		dfs(grid, i-1, j) +
+		dfs(grid, i, j-1) + 1
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+```
+
+### 子岛屿数量
+
+什么情况下 grid2 中的一个岛屿 B 是 grid1 中的一个岛屿 A 的子岛？
+
+- 当岛屿 B 中所有陆地在岛屿 A 中也是陆地的时候，岛屿 B 是岛屿 A 的子岛
+- 反过来说，如果岛屿 B 中存在一片陆地，在岛屿 A 的对应位置是海水，那么岛屿 B 就不是岛屿 A 的子岛
+- 我们只要遍历 grid2 中的所有岛屿，把那些不可能是子岛的岛屿排除掉，剩下的就是子岛
+
+```go
+func countSubIslands(grid1 [][]int, grid2 [][]int) int {
+    m := len(grid1)
+    n := len(grid1[0])
+    for i := 0; i < m; i++ {
+        for j := 0; j < n; j++ {
+            if grid1[i][j] == 0 && grid2[i][j] == 1 {
+                // 这个岛屿肯定不是子岛，淹掉
+                dfs(grid2, i, j)
+            }
+        }
+    }
+    // 现在 grid2 中剩下的岛屿都是子岛，计算岛屿数量
+    res := 0
+    for i := 0; i < m; i++ {
+        for j := 0; j < n; j++ {
+            if grid2[i][j] == 1 {
+                res++
+                dfs(grid2, i, j)
+            }
+        }
+    }
+    return res
+}
+
+// 从 (i, j) 开始，将与之相邻的陆地都变成海水
+func dfs(grid [][]int, i int, j int) {
+    m := len(grid)
+    n := len(grid[0])
+    if i < 0 || j < 0 || i >= m || j >= n {
+        return
+    }
+    if grid[i][j] == 0 {
+        return
+    }
+
+    grid[i][j] = 0
+    dfs(grid, i + 1, j)
+    dfs(grid, i, j + 1)
+    dfs(grid, i - 1, j)
+    dfs(grid, i, j - 1)
+}
+```
+
+### 不同岛屿数量
+
+很显然我们得想办法把二维矩阵中的「岛屿」进行转化，变成比如字符串这样的类型，然后利用 HashSet 这样的数据结构去重，最终得到不同的岛屿的个数
+
+如果想把岛屿转化成字符串，说白了就是序列化，序列化说白了就是遍历
+
+对于形状相同的岛屿，如果从同一起点出发，dfs 函数遍历的顺序肯定是一样的。因为遍历顺序是写死在你的递归函数里面的，不会动态改变
+
+```go
+func numDistinctIslands(grid [][]int) int {
+    m, n := len(grid), len(grid[0])
+    // 记录所有岛屿的序列化结果
+    islands := make(map[string]bool)
+    for i := 0; i < m; i++ {
+        for j := 0; j < n; j++ {
+            if grid[i][j] == 1 {
+                // 淹掉这个岛屿，同时存储岛屿的序列化结果
+                var sb strings.Builder
+                // 初始的方向可以随便写，不影响正确性
+                dfs(grid, i, j, &sb, 666)
+                islands[sb.String()] = true
+            }
+        }
+    }
+    // 不相同的岛屿数量
+    return len(islands)
+}
+
+func dfs(grid [][]int, i int, j int, sb *strings.Builder, dir int) {
+    m, n := len(grid), len(grid[0])
+    if i < 0 || j < 0 || i >= m || j >= n || grid[i][j] == 0 {
+        return
+    }
+    // 前序遍历位置：进入 (i, j)
+    grid[i][j] = 0
+    sb.WriteString(strconv.Itoa(dir) + ",")
+
+    // 搜索相邻节点
+    dfs(grid, i - 1, j, sb, 1)
+    dfs(grid, i + 1, j, sb, 2)
+    dfs(grid, i, j - 1, sb, 3)
+    dfs(grid, i, j + 1, sb, 4)
+
+    // 后序遍历位置：离开 (i, j)
+    sb.WriteString(strconv.Itoa(-dir) + ",")
+}
+```
