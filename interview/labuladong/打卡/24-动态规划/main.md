@@ -920,4 +920,53 @@ func max(a, b int) int {
 ```
 
 ### 最长公共子序列
+
 对于两个字符串求子序列的问题，都是用两个指针 i 和 j 分别在两个字符串上移动，大概率是动态规划思路
+
+```go
+func longestCommonSubsequence(s1 string, s2 string) int {
+	m := len(s1)
+	n := len(s2)
+	// 备忘录值为 -1 代表未曾计算
+	memo := make([][]int, m)
+	for i := range memo {
+		memo[i] = make([]int, n)
+		for j := range memo[i] {
+			memo[i][j] = -1
+		}
+	}
+
+	// 定义：计算 s1[i..] 和 s2[j..] 的最长公共子序列长度
+	// 使用闭包，以便使用 memo 来记录中间结果
+	var dp func(int, int) int
+	dp = func(i int, j int) int {
+		// base case
+		if i == len(s1) || j == len(s2) {
+			return 0
+		}
+		// 如果之前计算过，则直接返回备忘录中的答案
+		if memo[i][j] != -1 {
+			return memo[i][j]
+		}
+		// 根据 s1[i] 和 s2[j] 的情况做选择
+		if s1[i] == s2[j] {
+			// s1[i] 和 s2[j] 必然在 lcs 中
+			memo[i][j] = 1 + dp(i+1, j+1)
+		} else {
+			// s1[i] 和 s2[j] 至少有一个不在 lcs 中
+			memo[i][j] = max(dp(i+1, j), dp(i, j+1))
+		}
+		return memo[i][j]
+	}
+
+	// 计算 s1[0..] 和 s2[0..] 的 lcs 长度
+	return dp(0, 0)
+}
+
+func max(a int, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+```
