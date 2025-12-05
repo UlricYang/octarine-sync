@@ -673,5 +673,251 @@ for (int i = 0; i < n; i++) {
 
 - 只涉及一个字符串/数组的场景，dp 数组的定义：在子数组 array[i..j] 中，我们要求的子序列的长度为 dp[i][j]
 
-
 ## 经典题目
+
+### 0-1背包问题
+
+dp[i][w] 的定义如下：对于前 i 个物品，当前背包的容量为 w，这种情况下可以装的最大价值是 dp[i][w]
+
+```go
+func knapsack(W int, wt, val []int) int {
+    N := len(wt)
+    // base case 已初始化
+    dp := make([][]int, N+1)
+    for i := range dp {
+        dp[i] = make([]int, W+1)
+    }
+    for i := 1; i <= N; i++ {
+        for w := 1; w <= W; w++ {
+            if w-wt[i-1] < 0 {
+                // 这种情况下只能选择不装入背包
+                dp[i][w] = dp[i-1][w]
+            } else {
+                // 装入或者不装入背包，择优
+                dp[i][w] = max(
+                    dp[i-1][w-wt[i-1]]+val[i-1],
+                    dp[i-1][w],
+                )
+            }
+        }
+    }
+
+    return dp[N][W]
+}
+
+func max(a, b int) int {
+    if a > b {
+        return a
+    }
+    return b
+}
+```
+
+### 子集背包问题
+
+dp[i][j] = x 表示，对于前 i 个物品（i 从 1 开始计数），当前背包的容量为 j 时，若 x 为 true，则说明可以恰好将背包装满，若 x 为 false，则说明不能恰好将背包装满
+
+```go
+func canPartition(nums []int) bool {
+    sum := 0
+    for _, num := range nums {
+        sum += num
+    }
+    // 和为奇数时，不可能划分成两个和相等的集合
+    if sum%2 != 0 {
+        return false
+    }
+
+    n := len(nums)
+    sum /= 2
+
+    dp := make([]bool, sum+1)
+    // base case
+    dp[0] = true
+
+    for i := 0; i < n; i++ {
+        for j := sum; j >= 0; j-- {
+            if j - nums[i] >= 0 {
+                dp[j] = dp[j] || dp[j-nums[i]]
+            }
+        }
+    }
+    return dp[sum]
+}
+```
+
+### 完全背包问题
+
+dp[i][j] 的定义：若只使用前 i 个物品（可以重复使用），当背包容量为 j 时，有 dp[i][j] 种方法可以装满背包
+
+翻译回题目的意思：若只使用 coins 中的前 i 个（i 从 1 开始计数）硬币的面值，若想凑出金额 j，有 dp[i][j] 种凑法
+
+```go
+func change(amount int, coins []int) int {
+    n := len(coins)
+    dp := make([][]int, n+1)
+    for i := range dp {
+        dp[i] = make([]int, amount+1)
+    }
+    // base case
+    for i := 0; i <= n; i++ {
+        dp[i][0] = 1
+    }
+
+    for i := 1; i <= n; i++ {
+        for j := 1; j <= amount; j++ {
+            if j-coins[i-1] >= 0 {
+                dp[i][j] = dp[i-1][j] + dp[i][j-coins[i-1]]
+            } else {
+                dp[i][j] = dp[i-1][j]
+            }
+        }
+    }
+    return dp[n][amount]
+}
+```
+
+### 编辑距离
+
+解决两个字符串的动态规划问题，一般都是用两个指针 i, j 分别指向两个字符串的头部或尾部，然后尝试写状态转移方程
+
+比方说让 i, j 分别指向两个字符串的尾部，把 dp[i], dp[j] 定义为 s1[0..i], s2[0..j] 子串的编辑距离，那么 i, j 一步步往前移动的过程，就是问题规模（子串长度）逐步减小的过程
+
+当然，你想让让 i, j 分别指向字符串头部，然后一步步往后移动也可以，本质上并无区别，只要改一下 dp 函数/数组的定义即可
+
+#### 备忘录解法
+
+```go
+func minDistance(s1 string, s2 string) int {
+    // 备忘录
+    memo := make([][]int, len(s1))
+    for i := range memo {
+        memo[i] = make([]int, len(s2))
+        for j := range memo[i] {
+            memo[i][j] = -1
+        }
+    }
+    return dp(s1, len(s1)-1, s2, len(s2)-1, memo)
+}
+
+func dp(s1 string, i int, s2 string, j int, memo [][]int) int {
+    if i == -1 {
+        return j + 1
+    }
+    if j == -1 {
+        return i + 1
+    }
+    // 查备忘录，避免重叠子问题
+    if memo[i][j] != -1 {
+        return memo[i][j]
+    }
+    // 状态转移，结果存入备忘录
+    if s1[i] == s2[j] {
+        memo[i][j] = dp(s1, i-1, s2, j-1, memo)
+    } else {
+        memo[i][j] = min(
+            dp(s1, i, s2, j-1, memo)+1,
+            dp(s1, i-1, s2, j, memo)+1,
+            dp(s1, i-1, s2, j-1, memo)+1,
+        )
+    }
+    return memo[i][j]
+}
+
+func min(a int, b int, c int) int {
+    if a < b {
+        if a < c {
+            return a
+        }
+        return c
+    }
+    if b < c {
+        return b
+    }
+    return c
+}
+```
+
+#### DP table 解法
+
+```go
+func minDistance(s1 string, s2 string) int {
+    m, n := len(s1), len(s2)
+    dp := make([][]int, m+1)
+    for i := range dp {
+        dp[i] = make([]int, n+1)
+    }
+    // base case
+    for i := 1; i <= m; i++ {
+        dp[i][0] = i
+    }
+    for j := 1; j <= n; j++ {
+        dp[0][j] = j
+    }
+    // 自底向上求解
+    for i := 1; i <= m; i++ {
+        for j := 1; j <= n; j++ {
+            if s1[i-1] == s2[j-1] {
+                dp[i][j] = dp[i-1][j-1]
+            } else {
+                dp[i][j] = min(
+                    dp[i-1][j]+1,
+                    dp[i][j-1]+1,
+                    dp[i-1][j-1]+1,
+                )
+            }
+        }
+    }
+    // 储存着整个 s1 和 s2 的最小编辑距离
+    return dp[m][n]
+}
+
+func min(a, b, c int) int {
+    if a < b {
+        if a < c {
+            return a
+        }
+        return c
+    }
+    if b < c {
+        return b
+    }
+    return c
+}
+```
+
+### 最大子数组
+
+dp 数组的含义：以 nums[i] 为结尾的「最大子数组和」为 dp[i]
+
+```go
+func maxSubArray(nums []int) int {
+    n := len(nums)
+    if n == 0 {
+        return 0
+    }
+    // base case
+    dp_0 := nums[0]
+    var dp_1, res int = 0, dp_0
+
+    for i := 1; i < n; i++ {
+        // dp[i] = max(nums[i], nums[i] + dp[i-1])
+        dp_1 = max(nums[i], nums[i]+dp_0)
+        dp_0 = dp_1
+        // 顺便计算最大的结果
+        res = max(res, dp_1)
+    }
+
+    return res
+}
+
+func max(a, b int) int {
+    if a > b {
+        return a
+    }
+    return b
+}
+```
+
+### 最长公共子序列
+对于两个字符串求子序列的问题，都是用两个指针 i 和 j 分别在两个字符串上移动，大概率是动态规划思路
