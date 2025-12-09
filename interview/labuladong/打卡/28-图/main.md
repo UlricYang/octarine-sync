@@ -360,6 +360,8 @@ func traverse(graph Graph, visited []bool, v int) {
 
 看到依赖问题，首先想到的就是把问题转化成「有向图」这种数据结构，只要图中存在环，那就说明存在循环依赖
 
+### DFS
+
 ```go
 func canFinish(numCourses int, prerequisites [][]int) bool {
     // 记录一次递归堆栈中的节点
@@ -419,8 +421,55 @@ func buildGraph(numCourses int, prerequisites [][]int) []([]int) {
 }
 ```
 
-## 拓扑排序
+### BFS
 
+```go
+func canFinish(numCourses int, prerequisites [][]int) bool {
+    // 建图，有向边代表「被依赖」关系
+    graph := buildGraph(numCourses, prerequisites)
+    // 构建入度数组
+    indegree := make([]int, numCourses)
+    for _, edge := range prerequisites {
+        to := edge[0]
+        // 节点 to 的入度加一
+        indegree[to]++
+    }
+    // 根据入度初始化队列中的节点
+    q := make([]int, 0)
+    for i := 0; i < numCourses; i++ {
+        if indegree[i] == 0 {
+            // 节点 i 没有入度，即没有依赖的节点
+            // 可以作为拓扑排序的起点，加入队列
+            q = append(q, i)
+        }
+    }
+    // 记录遍历的节点个数
+    count := 0
+    // 开始执行 BFS 循环
+    for len(q) > 0 {
+        // 弹出节点 cur，并将它指向的节点的入度减一
+        cur := q[0]
+        q = q[1:]
+        count++
+        for _, next := range graph[cur] {
+            indegree[next]--
+            if indegree[next] == 0 {
+                // 如果入度变为 0，说明 next 依赖的节点都已被遍历
+                q = append(q, next)
+            }
+        }
+    }
+    // 如果所有节点都被遍历过，说明不成环
+    return count == numCourses
+}
+
+// 建图函数
+func buildGraph(numCourses int, prerequisites [][]int) [][]int {
+    // 见前文
+}
+```
+
+## 拓扑排序
 
 图的「逆后序遍历」顺序，就是拓扑排序的结果
 
@@ -429,6 +478,8 @@ func buildGraph(numCourses int, prerequisites [][]int) []([]int) {
 直观地说就是，让你把一幅图「拉平」，而且这个「拉平」的图里面，所有箭头方向都是一致的，比如上图所有箭头都是朝右的
 
 进行拓扑排序之前，先要确保图中没有环。因为肯定做不到所有箭头方向一致；反过来，如果一幅图是「有向无环图」，那么一定可以进行拓扑排序
+
+### DFS
 
 ```go
 func findOrder(numCourses int, prerequisites [][]int) []int {
@@ -482,5 +533,421 @@ func reverse(arr []int) {
 // 建图函数
 func buildGraph(numCourses int, prerequisites [][]int) [][]int {
     // 代码见前文
+}
+```
+
+### BFS
+
+```go
+func canFinish(numCourses int, prerequisites [][]int) bool {
+    // 建图，有向边代表「被依赖」关系
+    graph := buildGraph(numCourses, prerequisites)
+    // 构建入度数组
+    indegree := make([]int, numCourses)
+    for _, edge := range prerequisites {
+        to := edge[0]
+        // 节点 to 的入度加一
+        indegree[to]++
+    }
+
+    // 根据入度初始化队列中的节点
+    q := make([]int, 0)
+    for i := 0; i < numCourses; i++ {
+        if indegree[i] == 0 {
+            // 节点 i 没有入度，即没有依赖的节点
+            // 可以作为拓扑排序的起点，加入队列
+            q = append(q, i)
+        }
+    }
+
+    // 记录遍历的节点个数
+    count := 0
+    // 开始执行 BFS 循环
+    for len(q) > 0 {
+        // 弹出节点 cur，并将它指向的节点的入度减一
+        cur := q[0]
+        q = q[1:]
+        count++
+        for _, next := range graph[cur] {
+            indegree[next]--
+            if indegree[next] == 0 {
+                // 如果入度变为 0，说明 next 依赖的节点都已被遍历
+                q = append(q, next)
+            }
+        }
+    }
+
+    // 如果所有节点都被遍历过，说明不成环
+    return count == numCourses
+}
+
+// 建图函数
+func buildGraph(numCourses int, prerequisites [][]int) [][]int {
+    // 见前文
+}
+```
+
+把二叉树理解成一幅有向图，边的方向是由父节点指向子节点，那么就是下图这样：
+
+![](https://raw.githubusercontent.com/UlricYang/FigureBed/main/img/20251209133252512.jpeg)
+
+对于标准的后序遍历结果，根节点出现在最后，只要把遍历结果反过来，就是拓扑排序结果：
+
+![](https://raw.githubusercontent.com/UlricYang/FigureBed/main/img/20251209133336002.jpeg)
+
+## Union Find 并查集
+
+并查集（Union Find）结构是 二叉树结构 的衍生，用于高效解决无向图的连通性问题
+可以在 O(1) 时间内：
+
+- 合并两个连通分量
+- 查询两个节点是否连通
+- 查询连通分量的数量
+
+### 原理
+
+并查集本质上还是树结构的延伸
+如果我们想办法把同一个连通分量的节点都放到同一棵树中，把这棵树的根节点作为这个连通分量的代表，那么我们就可以高效实现上面的操作了
+并查集底层其实是一片森林（若干棵多叉树），每棵树代表一个连通分量：
+
+- connected(p, q)：只需要判断 p 和 q 所在的多叉树的根节点，若相同，则 p 和 q 在同一棵树中，即连通，否则不连通
+- count()：只需要统计一下总共有多少棵树，即可得到连通分量的数量
+- union(p, q)：只需要将 p 节点所在的这棵树的根节点，接入到 q 节点所在的这棵树的根节点下面，即可完成连接操作。注意这里并不是 p, q 两个节点的合并，而是两棵树根节点的合并。因为 p, q 一旦连通，那么他们所属的连通分量就合并成了同一个更大的连通分量
+
+### 算法
+
+```go
+type UF struct {
+    // 连通分量个数
+    count int
+    // 存储每个节点的父节点
+    parent []int
+}
+
+// n 为图中节点的个数
+func NewUF(n int) *UF {
+    parent := make([]int, n)
+    for i := 0; i < n; i++ {
+        parent[i] = i
+    }
+    return &UF{
+        count:  n,
+        parent: parent,
+    }
+}
+
+// 将节点 p 和节点 q 连通
+func (u *UF) Union(p, q int) {
+    rootP := u.Find(p)
+    rootQ := u.Find(q)
+    if rootP == rootQ {
+        return
+    }
+    u.parent[rootQ] = rootP
+    // 两个连通分量合并成一个连通分量
+    u.count--
+}
+
+// 判断节点 p 和节点 q 是否连通
+func (u *UF) Connected(p, q int) bool {
+    rootP := u.Find(p)
+    rootQ := u.Find(q)
+    return rootP == rootQ
+}
+
+func (u *UF) Find(x int) int {
+    if u.parent != x {
+        u.parent = u.Find(u.parent)
+    }
+    return u.parent
+}
+
+// 返回图中的连通分量个数
+func (u *UF) Count() int {
+    return u.count
+}
+```
+
+## 最小生成树
+
+首先理解什么是生成树。给定一个无向连通图 G，其生成树是 G 的一个子图，它包含 G 中的所有顶点，并且是一棵树（即无环连通图）
+换句话说，生成树具有以下特性：
+
+1. 包含原图中的所有顶点
+1. 边的数量为顶点数减一（V-1条边）
+1. 连通且无环
+
+如果图是加权图，那么最小生成树就是边权重总和最小的生成树
+
+- Kruskal 算法，边排序 + 并查集（Union-Find）来检测环，其本质是贪心思想
+- Prim 算法，从单个顶点开始 + 优先队列（最小堆）选择最小边 + 逐步扩展树，只需要对 Dijkstra 算法稍作修改，本质是 BFS + 贪心思想
+
+### Kruskal算法
+
+数据结构
+
+```go
+// Edge 定义图的边
+type Edge struct {
+	Start  int     // 起点
+	End    int     // 终点
+	Weight float64 // 权重
+}
+
+// Graph 定义图
+type Graph struct {
+	Vertices int     // 顶点数量
+	Edges    []Edge // 边集合
+}
+```
+
+并查集实现（路径压缩 + 按秩合并）
+
+```go
+// UnionFind 并查集结构
+type UnionFind struct {
+	parent []int // 每个节点的父节点
+	rank   []int // 树的秩（近似高度）
+}
+
+// NewUnionFind 创建并初始化并查集
+func NewUnionFind(size int) *UnionFind {
+	uf := &UnionFind{
+		parent: make([]int, size),
+		rank:   make([]int, size),
+	}
+	for i := 0; i < size; i++ {
+		uf.parent[i] = i // 每个节点的父节点初始化为自己
+		uf.rank[i] = 0   // 初始秩为0
+	}
+	return uf
+}
+
+// Find 查找元素x的根节点，带路径压缩
+func (uf *UnionFind) Find(x int) int {
+	// 路径压缩：将查找路径上的所有节点直接连接到根节点
+	if uf.parent != x {
+		uf.parent = uf.Find(uf.parent)
+	}
+	return uf.parent
+}
+
+// Union 合并两个元素所在的集合，使用按秩合并优化
+func (uf *UnionFind) Union(x, y int) bool {
+	rootX := uf.Find(x)
+	rootY := uf.Find(y)
+	// 如果已经在同一个集合中，不需要合并
+	if rootX == rootY {
+		return false
+	}
+	// 按秩合并：将秩较小的树连接到秩较大的树
+	if uf.rank[rootX] < uf.rank[rootY] {
+		uf.parent[rootX] = rootY
+	} else if uf.rank[rootX] > uf.rank[rootY] {
+		uf.parent[rootY] = rootX
+	} else {
+		// 秩相等时，任意选择，并将秩加1
+		uf.parent[rootY] = rootX
+		uf.rank[rootX]++
+	}
+	return true
+}
+```
+
+Kruskal 算法主函数
+
+```go
+// Kruskal 算法实现
+func Kruskal(graph Graph) ([]Edge, float64) {
+	// 1. 按权重对边进行排序
+	sort.Slice(graph.Edges, func(i, j int) bool {
+		return graph.Edges[i].Weight < graph.Edges[j].Weight
+	})
+	// 2. 初始化并查集
+	uf := NewUnionFind(graph.Vertices)
+	// 3. 存储最小生成树的边
+	mstEdges := make([]Edge, 0, graph.Vertices-1)
+	totalWeight := 0.0
+	// 4. 遍历排序后的边
+	for _, edge := range graph.Edges {
+		// 如果起点和终点不在同一个集合中（不形成环）
+		if uf.Union(edge.Start, edge.End) {
+			// 将边加入最小生成树
+			mstEdges = append(mstEdges, edge)
+			totalWeight += edge.Weight
+			// 如果已经找到 n-1 条边，算法结束
+			if len(mstEdges) == graph.Vertices-1 {
+				break
+			}
+		}
+	}
+	// 5. 检查是否找到完整的最小生成树
+	if len(mstEdges) < graph.Vertices-1 {
+		fmt.Printf("警告: 图可能不连通，只找到 %d 条边，需要 %d 条边\n",
+			len(mstEdges), graph.Vertices-1)
+	}
+	return mstEdges, totalWeight
+}
+```
+
+### Prim算法
+
+数据结构
+
+```go
+// 定义无穷大，表示无边连接
+const INF = math.MaxFloat64
+
+// PrimEdge 表示最小生成树中的一条边
+type PrimEdge struct {
+	From   int     // 起始顶点（在树中）
+	To     int     // 新加入的顶点
+	Weight float64 // 边的权重
+}
+
+// GraphAdjList 使用邻接表存储图（推荐用于稀疏图）
+type GraphAdjList struct {
+	Vertices int
+	AdjList  [][]AdjNode // 邻接表：每个顶点的邻居列表
+}
+
+// AdjNode 表示一条边的终点和权重
+type AdjNode struct {
+	Vertex int     // 相邻顶点
+	Weight float64 // 边的权重
+}
+
+// MinHeapItem 是优先队列中的元素
+type MinHeapItem struct {
+	Vertex int     // 顶点编号
+	Weight float64 // 从当前树到该顶点的最小边权
+	From   int     // 来自哪个顶点（用于记录边）
+}
+
+// MinHeap 实现最小堆接口（heap.Interface）
+type MinHeap []MinHeapItem
+
+func (h MinHeap) Len() int           { return len(h) }
+func (h MinHeap) Less(i, j int) bool { return h[i].Weight < h[j].Weight } // 最小堆：权重小的优先
+func (h MinHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
+
+func (h *MinHeap) Push(x interface{}) {
+	*h = append(*h, x.(MinHeapItem))
+}
+
+func (h *MinHeap) Pop() interface{} {
+	old := *h
+	n := len(old)
+	item := old[n-1]
+	*h = old[0 : n-1]
+	return item
+}
+```
+
+构建图
+
+```go
+// NewGraph 创建一个带边的邻接表图
+func NewGraph(vertices int, edges [][3]float64) GraphAdjList {
+	graph := GraphAdjList{
+		Vertices: vertices,
+		AdjList:  make([][]AdjNode, vertices),
+	}
+	// 初始化邻接表
+	for i := 0; i < vertices; i++ {
+		graph.AdjList[i] = make([]AdjNode, 0)
+	}
+	// 添加边（无向图，双向）
+	for _, e := range edges {
+		u, v, w := int(e[0]), int(e[1]), e[2]
+		graph.AdjList[u] = append(graph.AdjList[u], AdjNode{Vertex: v, Weight: w})
+		graph.AdjList[v] = append(graph.AdjList[v], AdjNode{Vertex: u, Weight: w})
+	}
+	return graph
+}
+```
+
+Prim 算法主函数（邻接矩阵）
+
+```go
+// Prim 执行 Prim 算法，返回最小生成树的边和总权重
+func Prim(graph GraphAdjList) ([]PrimEdge, float64) {
+	vertices := graph.Vertices
+
+	// 如果图为空或只有一个顶点
+	if vertices <= 1 {
+		return []PrimEdge{}, 0
+	}
+
+	// visited[i]：顶点 i 是否已在 MST 中
+	visited := make([]bool, vertices)
+
+	// minWeight[i]：从当前 MST 到顶点 i 的最小边权（初始为无穷）
+	minWeight := make([]float64, vertices)
+	for i := range minWeight {
+		minWeight[i] = INF
+	}
+
+	// parent[i]：顶点 i 是从哪个顶点加入 MST 的（用于重建边）
+	parent := make([]int, vertices)
+
+	// 优先队列：存储 (顶点, 到树的最小权重, 来自顶点)
+	pq := &MinHeap{}
+	heap.Init(pq)
+
+	// 从顶点 0 开始（任意起点）
+	start := 0
+	minWeight[start] = 0
+	heap.Push(pq, MinHeapItem{Vertex: start, Weight: 0, From: -1})
+
+	// 结果：MST 的边列表
+	mstEdges := make([]PrimEdge, 0, vertices-1) // 预分配容量，避免频繁扩容
+	totalWeight := 0.0
+
+	// 主循环：每次加入一个新顶点，直到所有顶点都被访问
+	for pq.Len() > 0 && len(mstEdges) < vertices-1 {
+		// 取出当前离树最近的顶点
+		item := heap.Pop(pq).(MinHeapItem)
+		current := item.Vertex
+
+		// 如果该顶点已被加入树，跳过（可能重复入队）
+		if visited[current] {
+			continue
+		}
+
+		// 标记为已访问
+		visited[current] = true
+
+		// 如果不是起点，则记录边（parent 记录了它从哪来）
+		if item.From != -1 {
+			edge := PrimEdge{
+				From:   item.From,
+				To:     current,
+				Weight: item.Weight,
+			}
+			mstEdges = append(mstEdges, edge)
+			totalWeight += item.Weight
+		}
+
+		// 遍历当前顶点的所有邻居
+		for _, neighbor := range graph.AdjList[current] {
+			next := neighbor.Vertex
+			weight := neighbor.Weight
+
+			// 如果邻居未访问，且当前边权比之前记录的更小 → 更新
+			if !visited[next] && weight < minWeight[next] {
+				minWeight[next] = weight
+				parent[next] = current
+				heap.Push(pq, MinHeapItem{Vertex: next, Weight: weight, From: current})
+			}
+		}
+	}
+
+	// 验证是否构建了完整 MST
+	if len(mstEdges) != vertices-1 {
+		fmt.Printf("⚠ 警告：图不连通，仅构建了 %d 条边（需要 %d 条）\n", len(mstEdges), vertices-1)
+	}
+
+	return mstEdges, totalWeight
 }
 ```
