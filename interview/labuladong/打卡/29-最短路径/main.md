@@ -45,10 +45,215 @@ A\* 算法的关键就在这里：它能够充分利用已知信息，有方向�
 
 ## Dijkstra算法
 
-对比标准 BFS 算法，只需修改两个地方即可得到 Dijkstra 算法：
+Dijkstra 算法是一种用于计算图中单源最短路径的算法，其本质是标准 BFS 算法 + 贪心思想
+如果图中包含负权重边，会让贪心思想失效，所以 Dijkstra 只能处理不包含负权重边的图
+Dijkstra 算法和标准的 BFS 算法的区别只有两个：
 
-1. 标准 BFS 算法使用普通队列，Dijkstra 算法使用优先级队列
+1. 标准 BFS 算法使用普通队列，Dijkstra 算法使用优先级队列，让距离起点更近的节点优先出队（贪心思想的体现）
 1. 标准 BFS 算法使用一个 visited 数组记录访问过的节点，确保算法不会陷入死循环；Dijkstra 算法使用一个 distTo 数组，确保算法不会陷入死循环，同时记录起点到其他节点的最短路径
+
+### 代码
+
+```go
+package main
+
+import (
+	"container/heap"
+	"math"
+)
+
+// 记录队列中的状态
+type State struct {
+	// 当前节点 ID
+	node int
+	// 从起点 s 到当前 node 节点的最小路径权重和
+	distFromStart int
+}
+
+// 优先级队列，distFromStart 较小的节点排在前面
+type PriorityQueue []*State
+
+func (pq PriorityQueue) Len() int { return len(pq) }
+func (pq PriorityQueue) Less(i, j int) bool {
+	return pq[i].distFromStart < pq[j].distFromStart
+}
+func (pq PriorityQueue) Swap(i, j int) { pq[i], pq[j] = pq[j], pq[i] }
+
+func (pq *PriorityQueue) Push(x interface{}) {
+	*pq = append(*pq, x.(*State))
+}
+
+func (pq *PriorityQueue) Pop() interface{} {
+	old := *pq
+	n := len(old)
+	item := old[n-1]
+	*pq = old[:n-1]
+	return item
+}
+
+// 输入不包含负权重边的加权图 graph 和起点 src
+// 返回从起点 src 到其他节点的最小路径权重和
+func dijkstra(graph Graph, src int) []int {
+	// 记录从起点 src 到其他节点的最小路径权重和
+	// distTo[i] 表示从起点 src 到节点 i 的最小路径权重和
+	distTo := make([]int, graph.Size())
+	// 都初始化为正无穷，表示未计算
+	for i := range distTo {
+		distTo[i] = math.MaxInt32
+	}
+
+	pq := &PriorityQueue{}
+	heap.Init(pq)
+
+	// 从起点 src 开始进行 BFS
+	heap.Push(pq, &State{node: src, distFromStart: 0})
+	distTo[src] = 0
+
+	for pq.Len() > 0 {
+		state := heap.Pop(pq).(*State)
+		curNode := state.node
+		curDistFromStart := state.distFromStart
+
+		if distTo[curNode] < curDistFromStart {
+			// 在 Dijkstra 算法中，队列中可能存在重复的节点 state
+			// 所以要在元素出队时进行判断，去除较差的重复节点
+			continue
+		}
+
+		for _, e := range graph.neighbors(curNode) {
+			nextNode := e.to
+			nextDistFromStart := curDistFromStart + e.weight
+
+			if distTo[nextNode] <= nextDistFromStart {
+				continue
+			}
+			// 将 nextNode 节点加入优先级队列
+			heap.Push(pq, &State{node: nextNode, distFromStart: nextDistFromStart})
+			// 记录 nextNode 节点到起点的最小路径权重和
+			distTo[nextNode] = nextDistFromStart
+		}
+	}
+
+	return distTo
+}
+```
+
+Dijkstra 算法和标准 BFS 算法的逻辑几乎完全相同，主要的修改如下：
+
+1. 给 State 类增加一个 distFromStart 字段，用于记录从起点到当前节点的路径权重和。使用
+   优先级队列 代替普通队列，让 distFromStart 最小的节点优先出队
+1. 用 distTo 数组替代 visited 数组。标准 BFS 算法中，是仅当 visited[node] == false 时才会让节点入队；Dijkstra 算法中是仅当节点能够让 distTo[node] 更小的时候才会让节点 State 入队
+1. 在元素出队时，对 distTo[curNode] < curDistFromStart 的情况进行剪枝
+
+整体的时间复杂度就是 O(ElogE)，空间复杂度是 O(V+E)
+
+### 点对点优化
+
+```java
+// 计算 src 到 dst 的最短路径权重和
+int dijkstra(Graph graph, int src, int dst) {
+    while (!pq.isEmpty()) {
+        State state = pq.poll();
+        int curNode = state.node;
+        int curDistFromStart = state.distFromStart;
+
+        if (distTo[curNode] < curDistFromStart) {
+            continue;
+        }
+        // 节点出队时进行判断，遇到终点时直接返回
+        if (curNode == dst) {
+            return curDistFromStart;
+        }
+        ...
+
+    }
+    return -1;
+}
+```
+
+### 带限制的最短路径
+
+每个节点自己维护了一个 State 对象，所以我们可以很容易地扩展标准的 Dijkstra 算法，完成更复杂的任务
+举个简单的例子，现在不仅让你求最短路径，还要求最短路径最多不能超过 k 条边
+这个场景下依然可以使用 Dijkstra 算法，但是需要修改 distTo 数组，且需要给 State 类增加额外的字段
+
+```go
+type State struct {
+    node           int
+    // 从起点到当前节点的路径权重和
+    distFromStart  int
+    // 从起点到当前节点经过的边的条数
+    edgesFromStart int
+}
+
+func dijkstra(graph [][][]int, src int, k int) [][]int {
+    n := len(graph)
+    // distTo[i][j] 的值就是起点 src 到达节点 i 的最短路径权重和，且经过的边数不超过 j
+    distTo := make([][]int, n)
+    for i := range distTo {
+        distTo[i] = make([]int, k+1)
+        for j := range distTo[i] {
+            distTo[i][j] = int(^uint(0) >> 1) // Integer.MAX_VALUE
+        }
+    }
+
+    pq := &StatePQ{}
+    heap.Init(pq)
+    heap.Push(pq, &State{node: src, distFromStart: 0, edgesFromStart: 0})
+    distTo[src][0] = 0
+
+    for pq.Len() > 0 {
+        state := heap.Pop(pq).(*State)
+        curNode := state.node
+        curDistFromStart := state.distFromStart
+        curEdgesFromStart := state.edgesFromStart
+
+        if distTo[curNode][curEdgesFromStart] < curDistFromStart {
+            continue
+        }
+
+        for _, e := range graph[curNode] {
+            nextNode := e[0]
+            nextDistFromStart := curDistFromStart + e[1]
+            nextEdgesFromStart := curEdgesFromStart + 1
+
+            // 若已超过 k 条边，或无法优化路径权重和，直接跳过
+            if nextEdgesFromStart > k || distTo[nextNode][nextEdgesFromStart] < nextDistFromStart {
+                continue
+            }
+
+            heap.Push(pq, &State{node: nextNode, distFromStart: nextDistFromStart, edgesFromStart: nextEdgesFromStart})
+            distTo[nextNode][nextEdgesFromStart] = nextDistFromStart
+        }
+    }
+
+    return distTo
+}
+
+type StatePQ []*State
+
+func (pq StatePQ) Len() int { return len(pq) }
+func (pq StatePQ) Less(i, j int) bool { return pq[i].distFromStart < pq[j].distFromStart }
+func (pq StatePQ) Swap(i, j int) { pq[i], pq[j] = pq[j], pq[i] }
+
+func (pq *StatePQ) Push(x interface{}) {
+    *pq = append(*pq, x.(*State))
+}
+
+func (pq *StatePQ) Pop() interface{} {
+    old := *pq
+    n := len(old)
+    x := old[n-1]
+    *pq = old[:n-1]
+    return x
+}
+```
+
+其中的关键修改有三个：
+
+1. 给 State 类增加一个 edgesFromStart 字段，用于记录从起点到当前节点经过的边的条数
+1. 把一维的 distTo 数组改成二维的 distTo 数组，其定义为：distTo[i][j] 表示起点 src 到达节点 i，且经过不超过 j 条边的最短路径权重和
+1. 修改节点出队和入队时的条件，添加了对 k 条边的判断
 
 ## 其他算法
 
